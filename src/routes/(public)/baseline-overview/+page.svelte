@@ -151,131 +151,133 @@
 	</Form>
 </Hero>
 
-<Container>
-	<div class="report-grid">
-		<div class="report-grid__section">
-			<Panel>
-				<PanelHeader>
-					<Heading element="h2" size={3}>Baseline status summary</Heading>
-				</PanelHeader>
-				<BarChart
-					data={summary_chart_data}
-					title="Baseline status summary"
-					alt="Number of distinct CSS features used, grouped by Baseline status: widely available, newly available, or limited availability"
-					show_table={false}
-				/>
-				<Table>
-					<thead>
-						<tr>
-							<th scope="col">Status</th>
-							<th scope="col" class="numeric">Features</th>
-							<th scope="col" class="numeric">Usages</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each summary_rows as row (row.label)}
-							<tr>
-								<td>{row.label}</td>
-								<td class="numeric">{format_number(row.counts.features)}</td>
-								<td class="numeric">{format_number(row.counts.usages)}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</Table>
-			</Panel>
-		</div>
-
-		<div class="report-grid__section">
-			<Panel>
-				<PanelHeader>
-					<Heading element="h2" size={3}>Widely available features by year</Heading>
-					<DefinitionList stats={[{ name: 'Years in range', value: new Date().getFullYear() - 2018 }]} />
-				</PanelHeader>
-				<TableBarChart
-					items={widely_available_by_year}
-					context="widely-available-by-year"
-					column_headers={['Year', 'Features']}
-					node_type="rule"
-					extra_columns={[
-						{
-							values: widely_available_by_year.map((v) => v.absoluteCount),
-							formatter: format_number,
-							header: 'Usage'
-						}
-					]}
-				/>
-			</Panel>
-		</div>
-
-		<div class="report-grid__section--full">
-			<Panel>
-				<PanelHeader>
-					<Heading element="h2" size={3}>Feature usage</Heading>
-					<DefinitionList stats={[{ name: 'Total features', value: feature_rows.length }]} />
-				</PanelHeader>
-				<div class="stack">
-					<FilterGroup>
-						<legend class="sr-only">Sorting</legend>
-						{#each sortings as sort (sort.id)}
-							<FilterOption bind:group={sorting} value={sort.id} id="sort-{sort.id}" name="feature-usage-sorting">
-								{sort.label}
-							</FilterOption>
-						{/each}
-					</FilterGroup>
+{#if usages.size > 0}
+	<Container>
+		<div class="report-grid">
+			<div class="report-grid__section">
+				<Panel>
+					<PanelHeader>
+						<Heading element="h2" size={3}>Baseline status summary</Heading>
+					</PanelHeader>
+					<BarChart
+						data={summary_chart_data}
+						title="Baseline status summary"
+						alt="Number of distinct CSS features used, grouped by Baseline status: widely available, newly available, or limited availability"
+						show_table={false}
+					/>
 					<Table>
 						<thead>
 							<tr>
-								<th scope="col" aria-sort={sorting === 'feature' ? 'ascending' : undefined}>Feature</th>
-								<th scope="col" aria-sort={sorting === 'count' ? 'descending' : undefined} class="numeric">Count</th>
-								<th scope="col" aria-sort={sorting === 'widely-available-since' ? 'ascending' : undefined}>
-									Widely available since
-								</th>
-								<th scope="col" aria-sort={sorting === 'newly-available-since' ? 'ascending' : undefined}>
-									Newly available since
-								</th>
-								<th scope="col">Browser support</th>
+								<th scope="col">Status</th>
+								<th scope="col" class="numeric">Features</th>
+								<th scope="col" class="numeric">Usages</th>
 							</tr>
 						</thead>
-						<tbody use:feature_rows_root={{ onchange: on_feature_row_change }}>
-							{#each feature_rows as row (row.name)}
-								{@const is_selected = selected_item?.type === 'feature-usage' && selected_item.value === row.name}
-								<tr
-									use:feature_rows_item={{ value: row.name }}
-									class="clickable"
-									aria-selected={is_selected ? 'true' : 'false'}
-								>
-									<td>{row.name}</td>
-									<td class="numeric">{format_number(row.count)}</td>
-									<td>{row.widely_available_since ?? 'N/A'}</td>
-									<td>{row.newly_available_since ?? 'N/A'}</td>
-									<!-- TODO: use browser logos https://github.com/alrra/browser-logos -->
-									<!-- or minic basline badges https://developer.mozilla.org/en-US/docs/Glossary/Baseline/Compatibility#baseline_badges -->
-									<td>{row.support ?? ''}</td>
+						<tbody>
+							{#each summary_rows as row (row.label)}
+								<tr>
+									<td>{row.label}</td>
+									<td class="numeric">{format_number(row.counts.features)}</td>
+									<td class="numeric">{format_number(row.counts.usages)}</td>
 								</tr>
 							{/each}
 						</tbody>
 					</Table>
-				</div>
-			</Panel>
-		</div>
+				</Panel>
+			</div>
 
-		<div class="devtools">
-			<DevTools tabs={analyzer_tabs}>
-				{#snippet children({ tab_id }: { tab_id: TabId })}
-					{#if tab_id === 'network'}
-						<NetworkPanel />
-					{:else if tab_id === 'inspector'}
-						<ItemUsage />
-					{:else if tab_id === 'report'}
-						<JsonPanel json={report_json} />
-					{:else if tab_id === 'css'}
-						<CssPanel css={css_state.css} />
-					{/if}
-				{/snippet}
-			</DevTools>
+			<div class="report-grid__section">
+				<Panel>
+					<PanelHeader>
+						<Heading element="h2" size={3}>Widely available features by year</Heading>
+						<DefinitionList stats={[{ name: 'Years in range', value: new Date().getFullYear() - 2018 }]} />
+					</PanelHeader>
+					<TableBarChart
+						items={widely_available_by_year}
+						context="widely-available-by-year"
+						column_headers={['Year', 'Features']}
+						node_type="rule"
+						extra_columns={[
+							{
+								values: widely_available_by_year.map((v) => v.absoluteCount),
+								formatter: format_number,
+								header: 'Usage'
+							}
+						]}
+					/>
+				</Panel>
+			</div>
+
+			<div class="report-grid__section--full">
+				<Panel>
+					<PanelHeader>
+						<Heading element="h2" size={3}>Feature usage</Heading>
+						<DefinitionList stats={[{ name: 'Total features', value: feature_rows.length }]} />
+					</PanelHeader>
+					<div class="stack">
+						<FilterGroup>
+							<legend class="sr-only">Sorting</legend>
+							{#each sortings as sort (sort.id)}
+								<FilterOption bind:group={sorting} value={sort.id} id="sort-{sort.id}" name="feature-usage-sorting">
+									{sort.label}
+								</FilterOption>
+							{/each}
+						</FilterGroup>
+						<Table>
+							<thead>
+								<tr>
+									<th scope="col" aria-sort={sorting === 'feature' ? 'ascending' : undefined}>Feature</th>
+									<th scope="col" aria-sort={sorting === 'count' ? 'descending' : undefined} class="numeric">Count</th>
+									<th scope="col" aria-sort={sorting === 'widely-available-since' ? 'ascending' : undefined}>
+										Widely available since
+									</th>
+									<th scope="col" aria-sort={sorting === 'newly-available-since' ? 'ascending' : undefined}>
+										Newly available since
+									</th>
+									<th scope="col">Browser support</th>
+								</tr>
+							</thead>
+							<tbody use:feature_rows_root={{ onchange: on_feature_row_change }}>
+								{#each feature_rows as row (row.name)}
+									{@const is_selected = selected_item?.type === 'feature-usage' && selected_item.value === row.name}
+									<tr
+										use:feature_rows_item={{ value: row.name }}
+										class="clickable"
+										aria-selected={is_selected ? 'true' : 'false'}
+									>
+										<td>{row.name}</td>
+										<td class="numeric">{format_number(row.count)}</td>
+										<td>{row.widely_available_since ?? 'N/A'}</td>
+										<td>{row.newly_available_since ?? 'N/A'}</td>
+										<!-- TODO: use browser logos https://github.com/alrra/browser-logos -->
+										<!-- or minic basline badges https://developer.mozilla.org/en-US/docs/Glossary/Baseline/Compatibility#baseline_badges -->
+										<td>{row.support ?? ''}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</Table>
+					</div>
+				</Panel>
+			</div>
+
+			<div class="devtools">
+				<DevTools tabs={analyzer_tabs}>
+					{#snippet children({ tab_id }: { tab_id: TabId })}
+						{#if tab_id === 'network'}
+							<NetworkPanel />
+						{:else if tab_id === 'inspector'}
+							<ItemUsage />
+						{:else if tab_id === 'report'}
+							<JsonPanel json={report_json} />
+						{:else if tab_id === 'css'}
+							<CssPanel css={css_state.css} />
+						{/if}
+					{/snippet}
+				</DevTools>
+			</div>
 		</div>
-	</div>
-</Container>
+	</Container>
+{/if}
 
 <Container size="lg">
 	<Markdown class="my-16">
