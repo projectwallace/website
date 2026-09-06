@@ -17,6 +17,7 @@
 	import type { CssFeature } from '#lib/data/css-feature.js'
 	import { browsers } from '#lib/data/browsers.js'
 	import Heading from '#lib/components/Heading.svelte'
+	import BaselineStatus from '#lib/components/BaselineStatus.svelte'
 	import { Header as PanelHeader, Panel } from '#lib/components/Panel/index.js'
 	import { format_number } from '#lib/format-number.js'
 	import DefinitionList from '#lib/components/stats/DefinitionList.svelte'
@@ -48,12 +49,14 @@
 	}
 
 	type FeatureRow = {
+		display_name: string
 		name: string
 		count: number
 		locations: CssLocation[]
 		widely_available_since: string | undefined
 		newly_available_since: string | undefined
 		support: string | undefined
+		feature: CssFeature
 	}
 
 	let sortings = [
@@ -85,12 +88,14 @@
 			}
 
 			rows.push({
-				name: feature?.name ?? feature_id,
+				display_name: feature.name,
+				name: feature_id,
 				count: locations.length,
 				locations,
 				widely_available_since: feature?.baseline === 'high' ? feature.baseline_high_date : undefined,
 				newly_available_since: feature?.baseline_low_date,
-				support: format_support(feature?.support)
+				support: format_support(feature?.support),
+				feature
 			})
 		}
 
@@ -245,13 +250,13 @@
 										class="clickable"
 										aria-selected={is_selected ? 'true' : 'false'}
 									>
-										<td>{row.name}</td>
+										<td>{row.display_name}</td>
 										<td class="numeric">{format_number(row.count)}</td>
 										<td>{row.widely_available_since ?? 'N/A'}</td>
 										<td>{row.newly_available_since ?? 'N/A'}</td>
-										<!-- TODO: use browser logos https://github.com/alrra/browser-logos -->
-										<!-- or minic basline badges https://developer.mozilla.org/en-US/docs/Glossary/Baseline/Compatibility#baseline_badges -->
-										<td>{row.support ?? ''}</td>
+										<td>
+											<BaselineStatus feature={row.feature} />
+										</td>
 									</tr>
 								{/each}
 							</tbody>

@@ -28,12 +28,17 @@ export function analyze(css: string): Map<string, CssLocation[]> {
 	walk(ast, (node) => {
 		for (let compat_key of match_node(node)) {
 			let feature_id = (compat_keys as Record<string, string>)[compat_key]
-			if (!feature_id) continue
+			if (!feature_id) {
+				continue
+			}
 
 			let loc = to_loc(node)
 			let locations = usages.get(feature_id)
-			if (locations) locations.push(loc)
-			else usages.set(feature_id, [loc])
+			if (locations) {
+				locations.push(loc)
+			} else {
+				usages.set(feature_id, [loc])
+			}
 		}
 	})
 
