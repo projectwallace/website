@@ -5,6 +5,7 @@ import type { CssLocation } from '#lib/css-location.js'
 export type UsageCounts = {
 	features: number
 	usages: number
+	locations: CssLocation[]
 }
 
 export type UsageSummary = {
@@ -20,14 +21,16 @@ export type UsageSummary = {
  */
 export function summarize_usages(usages: Map<string, CssLocation[]>): UsageSummary {
 	let summary: UsageSummary = {
-		widely_available: { features: 0, usages: 0 },
-		newly_available: { features: 0, usages: 0 },
-		limited_availability: { features: 0, usages: 0 }
+		widely_available: { features: 0, usages: 0, locations: [] },
+		newly_available: { features: 0, usages: 0, locations: [] },
+		limited_availability: { features: 0, usages: 0, locations: [] }
 	}
 
 	for (let [feature_id, locations] of usages) {
 		let feature = (css_features as Record<string, CssFeature>)[feature_id]
-		if (!feature) continue
+		if (!feature) {
+			continue
+		}
 
 		let bucket =
 			feature.baseline === 'high'
@@ -38,6 +41,7 @@ export function summarize_usages(usages: Map<string, CssLocation[]>): UsageSumma
 
 		bucket.features++
 		bucket.usages += locations.length
+		bucket.locations = bucket.locations.concat(locations)
 	}
 
 	return summary

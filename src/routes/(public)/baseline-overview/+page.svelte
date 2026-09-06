@@ -20,6 +20,14 @@
 	import { Header as PanelHeader, Panel } from '#lib/components/Panel/index.js'
 	import { format_number } from '#lib/format-number.js'
 	import DefinitionList from '#lib/components/stats/DefinitionList.svelte'
+	import DevTools from '#lib/components/DevTools.svelte'
+	import NetworkPanel from '#lib/components/NetworkPanel.svelte'
+	import ItemUsage from '#lib/components/ItemUsage.svelte'
+	import JsonPanel from '#lib/components/devtools/JsonPanel.svelte'
+	import CssPanel from '#lib/components/devtools/CssPanel.svelte'
+	import { analyzer_tabs, type TabId } from '#lib/components/devtools/tabs.js'
+	import type { CssLocation } from '#lib/css-location.js'
+	import { create_keyboard_list, type OnChange } from '#lib/components/use-keyboard-list.svelte.js'
 
 	const browser_count = Object.keys(browsers).length
 
@@ -42,6 +50,7 @@
 	type FeatureRow = {
 		name: string
 		count: number
+		locations: CssLocation[]
 		widely_available_since: string | undefined
 		newly_available_since: string | undefined
 		support: string | undefined
@@ -78,6 +87,7 @@
 			rows.push({
 				name: feature?.name ?? feature_id,
 				count: locations.length,
+				locations,
 				widely_available_since: feature?.baseline === 'high' ? feature.baseline_high_date : undefined,
 				newly_available_since: feature?.baseline_low_date,
 				support: format_support(feature?.support)
@@ -92,7 +102,8 @@
 		Array.from(group_by_year(usages), ([value, counts]) => ({
 			value,
 			count: counts.features,
-			absoluteCount: counts.usages
+			absoluteCount: counts.usages,
+			locations: counts.locations
 		}))
 	)
 
@@ -103,6 +114,31 @@
 		{ label: 'Limited availability', counts: usage_summary.limited_availability }
 	])
 	let summary_chart_data = $derived(Object.fromEntries(summary_rows.map((row) => [row.label, row.counts.features])))
+	let report_json = $derived({
+		summary: usage_summary,
+		features: feature_rows,
+		widely_available_by_year
+	})
+
+	let selected_item = $derived(css_state.selected_item)
+
+	let {
+		elements: { root: feature_rows_root, item: feature_rows_item }
+	} = create_keyboard_list({
+		scroll_selected_item_into_view: false
+	})
+
+	function on_feature_row_change({ value, active_index }: Parameters<OnChange>[0]) {
+		let row = feature_rows[active_index]
+		if (row) {
+			css_state.select_item({
+				type: 'feature-usage',
+				value,
+				locations: row.locations,
+				node_type: 'rule'
+			})
+		}
+	}
 </script>
 
 <Seo title="CSS Baseline overview" description="See the composition of your CSS based on Baseline features." />
@@ -159,7 +195,7 @@
 					items={widely_available_by_year}
 					context="widely-available-by-year"
 					column_headers={['Year', 'Features']}
-					enable_keyboard_navigation={false}
+					node_type="rule"
 					extra_columns={[
 						{
 							values: widely_available_by_year.map((v) => v.absoluteCount),
@@ -200,9 +236,14 @@
 								<th scope="col">Browser support</th>
 							</tr>
 						</thead>
-						<tbody>
+						<tbody use:feature_rows_root={{ onchange: on_feature_row_change }}>
 							{#each feature_rows as row (row.name)}
-								<tr>
+								{@const is_selected = selected_item?.type === 'feature-usage' && selected_item.value === row.name}
+								<tr
+									use:feature_rows_item={{ value: row.name }}
+									class="clickable"
+									aria-selected={is_selected ? 'true' : 'false'}
+								>
 									<td>{row.name}</td>
 									<td class="numeric">{format_number(row.count)}</td>
 									<td>{row.widely_available_since ?? 'N/A'}</td>
@@ -217,10 +258,24 @@
 				</div>
 			</Panel>
 		</div>
+
+		<div class="devtools">
+			<DevTools tabs={analyzer_tabs}>
+				{#snippet children({ tab_id }: { tab_id: TabId })}
+					{#if tab_id === 'network'}
+						<NetworkPanel />
+					{:else if tab_id === 'inspector'}
+						<ItemUsage />
+					{:else if tab_id === 'report'}
+						<JsonPanel json={report_json} />
+					{:else if tab_id === 'css'}
+						<CssPanel css={css_state.css} />
+					{/if}
+				{/snippet}
+			</DevTools>
+		</div>
 	</div>
 </Container>
-
-DEVTOOLS HERE
 
 <Container size="lg">
 	<Markdown class="my-16">
@@ -244,11 +299,22 @@ DEVTOOLS HERE
 	}
 
 	.report-grid__section--full {
-		grid-column: 1/-1;
+		grid-column: 1 / -1;
+	}
+
+	.devtools {
+		grid-column: 1 / -1;
+		position: sticky;
+		inset-block-end: 0;
+		inset-inline: 0;
 	}
 
 	.stack {
 		display: grid;
 		row-gap: var(--space-3);
+	}
+
+	tbody tr.clickable {
+		cursor: pointer;
 	}
 </style>
