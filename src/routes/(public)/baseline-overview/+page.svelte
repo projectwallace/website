@@ -6,6 +6,7 @@
 	import Hero from '#lib/components/Hero.svelte'
 	import Table from '#lib/components/Table.svelte'
 	import BarChart from '#lib/components/BarChart.svelte'
+	import TableBarChart from '#lib/components/stats/BarChart.svelte'
 	import FilterGroup from '#lib/components/FilterGroup.svelte'
 	import FilterOption from '#lib/components/FilterOption.svelte'
 	import { get_css_state } from '#lib/css-state.svelte.js'
@@ -16,6 +17,9 @@
 	import type { CssFeature } from '#lib/data/css-feature.js'
 	import { browsers } from '#lib/data/browsers.js'
 	import Heading from '#lib/components/Heading.svelte'
+	import { Header as PanelHeader, Panel } from '#lib/components/Panel/index.js'
+	import { format_number } from '#lib/format-number.js'
+	import DefinitionList from '#lib/components/stats/DefinitionList.svelte'
 
 	const browser_count = Object.keys(browsers).length
 
@@ -67,7 +71,9 @@
 			let feature = (css_features as Record<string, CssFeature>)[feature_id]
 			// Edge's own launch stands in for a real support date on CSS old
 			// enough to predate it - not a real "since" date, so drop the row.
-			if (feature?.baseline_low_date === EDGE_LAUNCH_DATE) continue
+			if (feature?.baseline_low_date === EDGE_LAUNCH_DATE) {
+				continue
+			}
 
 			rows.push({
 				name: feature?.name ?? feature_id,
@@ -82,10 +88,13 @@
 		return rows.sort(sort.fn)
 	})
 
-	// BarChart takes a plain object, and JS always sorts numeric-looking keys
-	// ("2018") ahead of non-numeric ones ("≤2017") regardless of insertion
-	// order - so the ≤2017 bucket renders as the last bar, not the first.
-	let widely_available_by_year = $derived(Object.fromEntries(group_by_year(usages)))
+	let widely_available_by_year = $derived(
+		Array.from(group_by_year(usages), ([value, counts]) => ({
+			value,
+			count: counts.features,
+			absoluteCount: counts.usages
+		}))
+	)
 
 	let usage_summary = $derived(summarize_usages(usages))
 	let summary_rows = $derived([
@@ -96,10 +105,7 @@
 	let summary_chart_data = $derived(Object.fromEntries(summary_rows.map((row) => [row.label, row.counts.features])))
 </script>
 
-<Seo
-	title="CSS Baseline overview"
-	description="See the composition of your CSS with regards to different Baseline features."
-/>
+<Seo title="CSS Baseline overview" description="See the composition of your CSS based on Baseline features." />
 
 <Hero>
 	<Form>
@@ -110,74 +116,111 @@
 </Hero>
 
 <Container>
-	<Heading element="h2">Baseline status summary</Heading>
-	<BarChart
-		data={summary_chart_data}
-		title="Baseline status summary"
-		alt="Number of distinct CSS features used, grouped by Baseline status: widely available, newly available, or limited availability"
-	/>
-	<Table>
-		<thead>
-			<tr>
-				<th scope="col">Status</th>
-				<th scope="col" class="numeric">Features</th>
-				<th scope="col" class="numeric">Usages</th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each summary_rows as row (row.label)}
-				<tr>
-					<td>{row.label}</td>
-					<td class="numeric">{row.counts.features}</td>
-					<td class="numeric">{row.counts.usages}</td>
-				</tr>
-			{/each}
-		</tbody>
-	</Table>
+	<div class="report-grid">
+		<div class="report-grid__section">
+			<Panel>
+				<PanelHeader>
+					<Heading element="h2" size={3}>Baseline status summary</Heading>
+				</PanelHeader>
+				<BarChart
+					data={summary_chart_data}
+					title="Baseline status summary"
+					alt="Number of distinct CSS features used, grouped by Baseline status: widely available, newly available, or limited availability"
+					show_table={false}
+				/>
+				<Table>
+					<thead>
+						<tr>
+							<th scope="col">Status</th>
+							<th scope="col" class="numeric">Features</th>
+							<th scope="col" class="numeric">Usages</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each summary_rows as row (row.label)}
+							<tr>
+								<td>{row.label}</td>
+								<td class="numeric">{format_number(row.counts.features)}</td>
+								<td class="numeric">{format_number(row.counts.usages)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</Table>
+			</Panel>
+		</div>
 
-	<Heading element="h2">Widely available features by year</Heading>
-	<BarChart
-		data={widely_available_by_year}
-		title="Widely available features by year"
-		alt="Number of distinct Baseline-widely-available CSS features used, grouped by the year they became widely available. Features whose exact year predates Microsoft Edge's 2015 launch are excluded, since Baseline only has an artifact date for them, not a real one."
-	/>
+		<div class="report-grid__section">
+			<Panel>
+				<PanelHeader>
+					<Heading element="h2" size={3}>Widely available features by year</Heading>
+					<DefinitionList stats={[{ name: 'Years in range', value: new Date().getFullYear() - 2018 }]} />
+				</PanelHeader>
+				<TableBarChart
+					items={widely_available_by_year}
+					context="widely-available-by-year"
+					column_headers={['Year', 'Features']}
+					enable_keyboard_navigation={false}
+					extra_columns={[
+						{
+							values: widely_available_by_year.map((v) => v.absoluteCount),
+							formatter: format_number,
+							header: 'Usage'
+						}
+					]}
+				/>
+			</Panel>
+		</div>
 
-	<Heading element="h2">Feature usage</Heading>
-	<FilterGroup>
-		<legend class="sr-only">Sorting</legend>
-		{#each sortings as sort (sort.id)}
-			<FilterOption bind:group={sorting} value={sort.id} id="sort-{sort.id}" name="feature-usage-sorting">
-				{sort.label}
-			</FilterOption>
-		{/each}
-	</FilterGroup>
-	<Table>
-		<thead>
-			<tr>
-				<th scope="col" aria-sort={sorting === 'feature' ? 'ascending' : undefined}>Feature</th>
-				<th scope="col" class="numeric" aria-sort={sorting === 'count' ? 'descending' : undefined}>Count</th>
-				<th scope="col" aria-sort={sorting === 'widely-available-since' ? 'ascending' : undefined}>
-					Widely available since
-				</th>
-				<th scope="col" aria-sort={sorting === 'newly-available-since' ? 'ascending' : undefined}>
-					Newly available since
-				</th>
-				<th scope="col">Browser support</th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each feature_rows as row (row.name)}
-				<tr>
-					<td>{row.name}</td>
-					<td class="numeric">{row.count}</td>
-					<td>{row.widely_available_since ?? '—'}</td>
-					<td>{row.newly_available_since ?? '—'}</td>
-					<td>{row.support ?? '—'}</td>
-				</tr>
-			{/each}
-		</tbody>
-	</Table>
+		<div class="report-grid__section--full">
+			<Panel>
+				<PanelHeader>
+					<Heading element="h2" size={3}>Feature usage</Heading>
+					<DefinitionList stats={[{ name: 'Total features', value: feature_rows.length }]} />
+				</PanelHeader>
+				<div class="stack">
+					<FilterGroup>
+						<legend class="sr-only">Sorting</legend>
+						{#each sortings as sort (sort.id)}
+							<FilterOption bind:group={sorting} value={sort.id} id="sort-{sort.id}" name="feature-usage-sorting">
+								{sort.label}
+							</FilterOption>
+						{/each}
+					</FilterGroup>
+					<Table>
+						<thead>
+							<tr>
+								<th scope="col" aria-sort={sorting === 'feature' ? 'ascending' : undefined}>Feature</th>
+								<th scope="col" aria-sort={sorting === 'count' ? 'descending' : undefined} class="numeric">Count</th>
+								<th scope="col" aria-sort={sorting === 'widely-available-since' ? 'ascending' : undefined}>
+									Widely available since
+								</th>
+								<th scope="col" aria-sort={sorting === 'newly-available-since' ? 'ascending' : undefined}>
+									Newly available since
+								</th>
+								<th scope="col">Browser support</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each feature_rows as row (row.name)}
+								<tr>
+									<td>{row.name}</td>
+									<td class="numeric">{format_number(row.count)}</td>
+									<td>{row.widely_available_since ?? 'N/A'}</td>
+									<td>{row.newly_available_since ?? 'N/A'}</td>
+									<!-- TODO: use browser logos https://github.com/alrra/browser-logos -->
+									<!-- or minic basline badges https://developer.mozilla.org/en-US/docs/Glossary/Baseline/Compatibility#baseline_badges -->
+									<td>{row.support ?? ''}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</Table>
+				</div>
+			</Panel>
+		</div>
+	</div>
 </Container>
+
+DEVTOOLS HERE
 
 <Container size="lg">
 	<Markdown class="my-16">
@@ -188,5 +231,24 @@
 <style>
 	.font-heading {
 		font-size: var(--size-5xl);
+	}
+
+	.report-grid {
+		display: grid;
+		row-gap: var(--space-5);
+		column-gap: var(--space-5);
+
+		@media (min-width: 44rem) {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+
+	.report-grid__section--full {
+		grid-column: 1/-1;
+	}
+
+	.stack {
+		display: grid;
+		row-gap: var(--space-3);
 	}
 </style>

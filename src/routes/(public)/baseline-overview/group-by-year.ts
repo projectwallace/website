@@ -1,5 +1,7 @@
 import css_features from '#lib/data/css-features.generated.json'
 import type { CssFeature } from '#lib/data/css-feature.js'
+import type { CssLocation } from '#lib/css-location.js'
+import type { UsageCounts } from './summarize-usages.js'
 
 /**
  * Baseline's "newly available" date is when the last of the 5 tracked
@@ -13,28 +15,47 @@ import type { CssFeature } from '#lib/data/css-feature.js'
 export const EDGE_LAUNCH_DATE = '2015-07-29'
 
 /**
- * Counts distinct widely-available features per year, using the year they
- * became widely available (`baseline_high_date`). Features that aren't
- * widely available yet, that have no Baseline status, or whose date is just
- * the Edge-launch artifact (see above) are dropped. Returns a Map (not a
- * plain object) so callers control bar order - object keys that look like
- * numbers get sorted before non-numeric ones regardless of insertion order.
+ * First year Baseline "widely available" dates can land in, used as the
+ * floor for the chart so early years with no features still get a 0 bar.
  */
-export function group_by_year(usages: Map<string, unknown>): Map<string, number> {
-	let year_counts = new Map<number, number>()
+export const FIRST_BASELINE_YEAR = 2018
 
-	for (let feature_id of usages.keys()) {
+/**
+ * Counts distinct widely-available features per year (`features`) and their
+ * total occurrences in the stylesheet (`usages`), using the year they became
+ * widely available (`baseline_high_date`). Features that aren't widely
+ * available yet, that have no Baseline status, or whose date is just the
+ * Edge-launch artifact (see above) are dropped. Every year from
+ * FIRST_BASELINE_YEAR through the latest year with data is included, even
+ * when its counts are 0. Returns a Map (not a plain object) so callers
+ * control bar order - object keys that look like numbers get sorted before
+ * non-numeric ones regardless of insertion order.
+ */
+export function group_by_year(usages: Map<string, CssLocation[]>): Map<string, UsageCounts> {
+	let year_counts = new Map<number, UsageCounts>()
+
+	for (let [feature_id, locations] of usages) {
 		let feature = (css_features as Record<string, CssFeature>)[feature_id]
-		if (!feature || feature.baseline !== 'high' || !feature.baseline_high_date) continue
-		if (feature.baseline_low_date === EDGE_LAUNCH_DATE) continue
+
+		if (!feature || feature.baseline !== 'high' || !feature.baseline_high_date) {
+			continue
+		}
+		if (feature.baseline_low_date === EDGE_LAUNCH_DATE) {
+			continue
+		}
 
 		let year = new Date(feature.baseline_high_date).getFullYear()
-		year_counts.set(year, (year_counts.get(year) ?? 0) + 1)
+		let counts = year_counts.get(year) ?? { features: 0, usages: 0 }
+		counts.features++
+		counts.usages += locations.length
+		year_counts.set(year, counts)
 	}
 
-	let by_year = new Map<string, number>()
-	for (let [year, count] of Array.from(year_counts).sort(([a], [b]) => a - b)) {
-		by_year.set(String(year), count)
+	let last_year = new Date().getFullYear()
+
+	let by_year = new Map<string, UsageCounts>()
+	for (let year = FIRST_BASELINE_YEAR; year <= last_year; year++) {
+		by_year.set(String(year), year_counts.get(year) ?? { features: 0, usages: 0 })
 	}
 
 	return by_year

@@ -571,6 +571,8 @@
 			line-height: var(--leading-none);
 			font-style: normal;
 			text-transform: uppercase;
+			text-box-trim: trim-end;
+			text-box-edge: cap alphabetic;
 		}
 
 		.title {
